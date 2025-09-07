@@ -1,0 +1,62 @@
+[
+  {
+    "name": "신사역 푸른저축은행",
+    "group": "신사역 푸른저축은행(단독)",
+    "cycle_sec": 190,
+    "green_sec": 55,
+    "offset_sec": 0,
+    "reference_epoch": "2025-09-07T11:34:57Z",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "name": "신사 3-4",
+    "group": "신사사거리",
+    "cycle_sec": 180,
+    "green_sec": 40.47,
+    "offset_sec": 0,
+    "reference_epoch": "2025-09-07T11:29:15Z",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "name": "신사 2-6",
+    "group": "신사사거리",
+    "cycle_sec": 180,
+    "green_sec": 36.74,
+    "offset_sec": 117,
+    "reference_epoch": "2025-09-07T11:29:15Z",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "name": "신사 4-5",
+    "group": "신사사거리",
+    "cycle_sec": 180,
+    "green_sec": 17.72,
+    "offset_sec": 86,
+    "reference_epoch": "2025-09-07T11:29:15Z",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "name": "신사 5-6",
+    "group": "신사사거리",
+    "cycle_sec": 180,
+    "green_sec": 43.68,
+    "offset_sec": 167,
+    "reference_epoch": "2025-09-07T11:29:15Z",
+    "lat": null,
+    "lng": null
+  },
+  {
+    "name": "강남역 중앙",
+    "group": "강남역 중앙",
+    "cycle_sec": 160,
+    "green_sec": 56.5,
+    "offset_sec": 0,
+    "reference_epoch": "2025-09-07T12:10:00Z",
+    "lat": null,
+    "lng": null
+  }
+]
