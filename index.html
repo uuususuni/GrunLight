@@ -3,15 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>GrunLight • 신호 잔여시간 미니 웹</title>
+  <title>GrunLight • 교차로(그룹) 동시 타이머</title>
   <style>
     :root{--bg:#0b0c10;--card:#15161a;--muted:#8a8f98;--acc:#4ade80;--warn:#fbbf24;--err:#f87171;--txt:#f3f4f6}
     *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Noto Sans KR,sans-serif}
     header{padding:20px 16px;border-bottom:1px solid #222}
     h1{margin:0;font-size:18px}
-    main{display:grid;grid-template-columns:1fr;gap:16px;max-width:980px;margin:0 auto;padding:16px}
+    main{display:grid;grid-template-columns:1fr;gap:16px;max-width:1080px;margin:0 auto;padding:16px}
     .card{background:var(--card);border:1px solid #222;border-radius:14px;padding:14px}
-    .row{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+    .row{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px}
     label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px}
     input,button,select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid #2a2b31;background:#0e0f13;color:var(--txt)}
     button{background:#11151a;border-color:#2a2b31;cursor:pointer}
@@ -26,7 +26,6 @@
     .right{margin-left:auto}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 
-    /* LIVE PANEL */
     .live{display:flex;gap:16px;align-items:center}
     .live .big{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px 8px}
     .stateBadge{font-weight:700;font-size:14px;padding:6px 10px;border-radius:999px}
@@ -36,29 +35,61 @@
     .sub{font-size:12px;color:var(--muted)}
     .blink{animation:blink 1s step-start infinite}
     @keyframes blink{50%{opacity:.45}}
-    .gridTwo{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .kicker{font-size:12px;color:var(--muted);margin-bottom:6px}
     .rowClick tbody tr{cursor:pointer}
     .rowClick tbody tr:hover{background:#111216}
+
+    /* 그룹 카드 뷰 */
+    .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:10px}
+    .sigCard{background:#0f1014;border:1px solid #222;border-radius:12px;padding:12px}
+    .sigName{font-weight:700;margin-bottom:6px}
+    .sigState{font-weight:700;font-size:12px;padding:4px 8px;border-radius:999px;display:inline-block}
+    .sigState.g{background:rgba(74,222,128,.18);color:#bbf7d0}
+    .sigState.r{background:rgba(248,113,113,.18);color:#fecaca}
+    .sigTimer{font-size:40px;font-weight:800;margin:6px 0 2px}
+    .sigSub{font-size:12px;color:var(--muted)}
+    .sigCard:hover{background:#0e1016}
+    .selectedRow{background:#101218 !important}
   </style>
 </head>
 <body>
 <header>
-  <h1>🚦 GrunLight • 신호 잔여시간 미니 웹</h1>
-  <div class="muted">cycle/green/offset/reference_epoch만 알면 지금 GREEN/RED와 잔여초를 계산합니다. (UTC 기준)</div>
+  <h1>🚦 GrunLight • 교차로(그룹) 동시 타이머</h1>
+  <div class="muted">각 횡단보도를 개별 등록하되, 같은 <b>그룹</b>으로 묶어 선택하면 4개 타이머를 동시에 볼 수 있어요.</div>
 </header>
+
 <main>
-  <!-- LIVE PANEL -->
+  <!-- LIVE (단일) -->
   <section class="card">
-    <div class="flex"><div class="muted">라이브 패널</div><div class="right muted">UTC 현재시각: <span id="utcNow" class="mono"></span></div></div>
+    <div class="flex">
+      <div class="muted">라이브 패널(단일)</div>
+      <div class="right muted">UTC 현재시각: <span id="utcNow" class="mono"></span></div>
+    </div>
     <div class="live">
       <div class="big">
         <div id="liveName" style="font-size:16px;font-weight:600">항목을 추가하세요</div>
         <div id="liveState" class="stateBadge stateRED" style="margin-top:8px">-</div>
         <div id="liveTimer" class="timer">00:00</div>
         <div id="liveSub" class="sub">cycle 0s • green 0s • offset 0s</div>
+        <div class="flex" style="gap:8px;margin-top:12px">
+          <button id="syncBtn">지금 초록 시작(동기화)</button>
+          <button id="copyEpochBtn">현재 UTC 복사</button>
+        </div>
       </div>
     </div>
+  </section>
+
+  <!-- GROUP VIEW -->
+  <section class="card">
+    <div class="flex">
+      <div class="muted">교차로(그룹) 보기</div>
+      <div class="right flex" style="gap:8px">
+        <label style="margin:0">그룹 선택</label>
+        <select id="groupSelect" style="width:auto;min-width:220px"></select>
+        <button id="refreshGroup">보기</button>
+      </div>
+    </div>
+    <div id="groupInfo" class="muted" style="margin-top:6px"></div>
+    <div id="groupCards" class="cards"></div>
   </section>
 
   <!-- INPUTS -->
@@ -66,15 +97,19 @@
     <div class="row" style="align-items:end">
       <div>
         <label>이름</label>
-        <input id="name" placeholder="예) 신사역 푸른저축은행" />
+        <input id="name" placeholder="예) 신사 3–4 (기준) / 신사 2–6 ..." />
+      </div>
+      <div>
+        <label>그룹(교차로)</label>
+        <input id="group" placeholder="예) 신사 사거리 / 강남역 중앙" />
       </div>
       <div>
         <label>cycle (초)</label>
-        <input id="cycle" type="number" placeholder="예) 190" />
+        <input id="cycle" type="number" placeholder="예) 180" />
       </div>
       <div>
         <label>green (초)</label>
-        <input id="green" type="number" placeholder="예) 55" />
+        <input id="green" type="number" placeholder="예) 40.5" />
       </div>
       <div>
         <label>offset (초)</label>
@@ -82,7 +117,7 @@
       </div>
       <div>
         <label>reference_epoch (UTC, ISO8601)</label>
-        <input id="epoch" class="mono" placeholder="예) 2025-09-06T11:50:50Z" />
+        <input id="epoch" class="mono" placeholder="예) 2025-09-07T11:29:15Z" />
       </div>
       <div>
         <label>위도(lat)</label>
@@ -103,7 +138,7 @@
   <!-- TABLE -->
   <section class="card">
     <div class="flex">
-      <div class="muted">추가한 횡단보도 (행 클릭→ 라이브 패널로 고정)</div>
+      <div class="muted">추가한 횡단보도 (행 클릭→ 단일 라이브 패널로 고정)</div>
       <div class="right">
         <button id="exportBtn">JSON 내보내기</button>
         <button id="clearBtn">모두 삭제</button>
@@ -113,6 +148,7 @@
       <thead>
         <tr>
           <th>이름</th>
+          <th>그룹</th>
           <th>상태</th>
           <th>잔여 초</th>
           <th>phase</th>
@@ -128,26 +164,37 @@
 </main>
 
 <script>
-const storeKey = 'gl_intersections_v2';
+// ===== core state =====
+const storeKey = 'gl_intersections_group_v1';
 let items = [];
-let currentIdx = 0; // 라이브 패널에 표시할 대상
+let currentIdx = 0;
+let storageAvailable = true;
 
-function fmtUtcNow(){ return new Date().toISOString(); }
-function pad(n){return n<10?('0'+n):(''+n)}
-function fmtClock(sec){ sec=Math.max(0,Math.floor(sec)); const m=Math.floor(sec/60), s=sec%60; return `${pad(m)}:${pad(s)}` }
+function testStorage(){
+  try{ const k='__gl_test__'+Math.random(); localStorage.setItem(k,'1'); localStorage.removeItem(k); return true; }catch(e){ return false; }
+}
+function load(){
+  storageAvailable = testStorage();
+  if(!storageAvailable){
+    document.body.insertAdjacentHTML('afterbegin', `<div style="background:#2a1e00;color:#facc15;padding:10px 12px;text-align:center;font-size:13px">⚠️ 이 환경에서는 저장(localStorage)이 제한됩니다. Safari/Chrome 정식 브라우저를 권장합니다.</div>`);
+    items = [];
+    return;
+  }
+  try{ items = JSON.parse(localStorage.getItem(storeKey)||'[]'); }catch{ items=[] }
+}
+function save(){ if(storageAvailable){ localStorage.setItem(storeKey, JSON.stringify(items)); } }
 
-function load(){ try{ items = JSON.parse(localStorage.getItem(storeKey)||'[]'); }catch{ items=[] } }
-function save(){ localStorage.setItem(storeKey, JSON.stringify(items)); }
-function addItem(obj){ items.push(obj); save(); render(); fixLiveIndex(); }
-function removeAt(i){ items.splice(i,1); if(currentIdx>=items.length) currentIdx=items.length-1; save(); render(); fixLiveIndex(); }
+function addItem(obj){ items.push(obj); save(); render(); fixLiveIndex(); fillGroupSelect(); }
+function removeAt(i){ items.splice(i,1); if(currentIdx>=items.length) currentIdx=items.length-1; save(); render(); fixLiveIndex(); fillGroupSelect(); }
 function fixLiveIndex(){ if(items.length===0) currentIdx=0; else if(currentIdx<0) currentIdx=0; }
 
+// ===== timers & math =====
 function compute(nowMs, it){
   const ref = Date.parse(it.reference_epoch);
   if(isNaN(ref)) return {state:'ERR', remaining:0, phase:0};
   const cycle = +it.cycle_sec, green = +it.green_sec, offset = +it.offset_sec;
   if(!(cycle>0 && green>=0 && green<=cycle)) return {state:'ERR', remaining:0, phase:0};
-  const elapsed = Math.max(0, (nowMs - ref)/1000); // 부동소수
+  const elapsed = Math.max(0, (nowMs - ref)/1000);
   const phase0 = elapsed % cycle;
   const phase = (phase0 + (offset%cycle)+cycle)%cycle;
   let state, remaining;
@@ -155,45 +202,43 @@ function compute(nowMs, it){
   else { state = 'RED'; remaining = cycle - phase; }
   return {state, remaining, phase};
 }
+function pad(n){return n<10?('0'+n):(''+n)}
+function fmtClock(sec){ sec=Math.max(0,Math.floor(sec)); const m=Math.floor(sec/60), s=sec%60; return `${pad(m)}:${pad(s)}` }
 
+// ===== render (single) =====
 function render(){
   const nowMs = Date.now();
-  document.getElementById('utcNow').textContent = fmtUtcNow();
+  const utcNowEl = document.getElementById('utcNow'); if(utcNowEl) utcNowEl.textContent = new Date(nowMs).toISOString();
 
-  // 테이블 렌더
+  // table
   const tbody = document.querySelector('#tbl tbody');
-  tbody.innerHTML = '';
-  items.forEach((it, i)=>{
-    const {state, remaining, phase} = compute(nowMs, it);
-    const tr = document.createElement('tr');
-    tr.onclick = ()=>{ currentIdx = i; renderLive(nowMs); };
+  if(tbody){
+    tbody.innerHTML = '';
+    items.forEach((it, i)=>{
+      const {state, remaining, phase} = compute(nowMs, it);
+      const tr = document.createElement('tr');
+      tr.onclick = ()=>{ currentIdx = i; renderLive(nowMs); highlightRow(i); };
 
-    const tdName = document.createElement('td'); tdName.textContent = it.name; tr.appendChild(tdName);
+      const tdName = document.createElement('td'); tdName.textContent = it.name; tr.appendChild(tdName);
+      const tdGroup = document.createElement('td'); tdGroup.textContent = it.group||''; tr.appendChild(tdGroup);
+      const tdState = document.createElement('td'); tdState.innerHTML = state==='GREEN' ? '<span class="pill green">GREEN</span>' : (state==='RED' ? '<span class="pill red">RED</span>' : '<span class="pill">ERR</span>'); tr.appendChild(tdState);
+      const tdRem = document.createElement('td'); tdRem.className='mono'; tdRem.textContent = Math.floor(remaining); tr.appendChild(tdRem);
+      const tdPhase = document.createElement('td'); tdPhase.className='mono'; tdPhase.textContent = Math.floor(phase); tr.appendChild(tdPhase);
+      const tdCfg = document.createElement('td'); tdCfg.className='mono'; tdCfg.textContent = `${it.cycle_sec}/${it.green_sec}/${it.offset_sec}`; tr.appendChild(tdCfg);
+      const tdEpoch = document.createElement('td'); tdEpoch.className='mono'; tdEpoch.textContent = it.reference_epoch; tr.appendChild(tdEpoch);
+      const tdCoord = document.createElement('td'); tdCoord.className='mono'; tdCoord.textContent = (it.lat?it.lat:'') + (it.lng?','+it.lng:''); tr.appendChild(tdCoord);
+      const tdBtn = document.createElement('td'); const delBtn = document.createElement('button'); delBtn.textContent = '삭제'; delBtn.addEventListener('click', (e)=>{ e.stopPropagation(); removeAt(i); }); tdBtn.appendChild(delBtn); tr.appendChild(tdBtn);
 
-    const tdState = document.createElement('td');
-    tdState.innerHTML = state==='GREEN' ? '<span class="pill green">GREEN</span>' : (state==='RED' ? '<span class="pill red">RED</span>' : '<span class="pill">ERR</span>');
-    tr.appendChild(tdState);
+      tbody.appendChild(tr);
+    });
+  }
 
-    const tdRem = document.createElement('td'); tdRem.className='mono'; tdRem.textContent = Math.floor(remaining); tr.appendChild(tdRem);
-
-    const tdPhase = document.createElement('td'); tdPhase.className='mono'; tdPhase.textContent = Math.floor(phase); tr.appendChild(tdPhase);
-
-    const tdCfg = document.createElement('td'); tdCfg.className='mono'; tdCfg.textContent = `${it.cycle_sec}/${it.green_sec}/${it.offset_sec}`; tr.appendChild(tdCfg);
-
-    const tdEpoch = document.createElement('td'); tdEpoch.className='mono'; tdEpoch.textContent = it.reference_epoch; tr.appendChild(tdEpoch);
-
-    const tdCoord = document.createElement('td'); tdCoord.className='mono'; tdCoord.textContent = (it.lat?it.lat:'') + (it.lng?','+it.lng:''); tr.appendChild(tdCoord);
-
-    const tdBtn = document.createElement('td');
-    const delBtn = document.createElement('button'); delBtn.textContent = '삭제';
-    delBtn.addEventListener('click', (e)=>{ e.stopPropagation(); removeAt(i); });
-    tdBtn.appendChild(delBtn); tr.appendChild(tdBtn);
-
-    tbody.appendChild(tr);
-  });
-
-  // 라이브 패널 렌더
   renderLive(nowMs);
+}
+
+function highlightRow(i){
+  const rows = document.querySelectorAll('#tbl tbody tr');
+  rows.forEach((r,idx)=>{ r.classList.toggle('selectedRow', idx===i); });
 }
 
 function renderLive(nowMs){
@@ -203,97 +248,67 @@ function renderLive(nowMs){
   const subEl = document.getElementById('liveSub');
 
   if(items.length===0){
-    nameEl.textContent = '항목을 추가하세요';
-    stateEl.textContent = '-';
-    stateEl.className = 'stateBadge';
-    timerEl.textContent = '00:00';
-    subEl.textContent = 'cycle 0s • green 0s • offset 0s';
+    if(nameEl) nameEl.textContent = '항목을 추가하세요';
+    if(stateEl){ stateEl.textContent = '-'; stateEl.className = 'stateBadge'; }
+    if(timerEl) timerEl.textContent = '00:00';
+    if(subEl) subEl.textContent = 'cycle 0s • green 0s • offset 0s';
     return;
   }
   const it = items[Math.max(0,Math.min(currentIdx,items.length-1))];
   const {state, remaining, phase} = compute(nowMs, it);
 
-  nameEl.textContent = it.name + (it.lat?` • ${it.lat.toFixed(5)},${it.lng?.toFixed(5)||''}`:'');
-  stateEl.textContent = state;
-  stateEl.className = 'stateBadge ' + (state==='GREEN'?'stateGREEN':'stateRED');
-  timerEl.textContent = fmtClock(remaining);
-  timerEl.classList.toggle('blink', Math.floor(remaining)<=5);
-  subEl.textContent = `cycle ${it.cycle_sec}s • green ${it.green_sec}s • offset ${it.offset_sec}s • phase ${Math.floor(phase)}s`;
+  if(nameEl) nameEl.textContent = (it.group?`[${it.group}] `:'') + it.name;
+  if(stateEl){ stateEl.textContent = state; stateEl.className = 'stateBadge ' + (state==='GREEN'?'stateGREEN':'stateRED'); }
+  if(timerEl){ timerEl.textContent = fmtClock(remaining); timerEl.classList.toggle('blink', Math.floor(remaining)<=5); }
+  if(subEl) subEl.textContent = `cycle ${it.cycle_sec}s • green ${it.green_sec}s • offset ${it.offset_sec}s • phase ${Math.floor(phase)}s`;
 }
 
-// 타이머: 200ms 간격으로 부드러운 카운트다운
-setInterval(()=>render(), 200);
+// ===== GROUP VIEW =====
+function getGroups(){
+  const set = new Set();
+  items.forEach(it=>{ if(it.group && it.group.trim()) set.add(it.group.trim()); });
+  return Array.from(set).sort();
+}
+function fillGroupSelect(){
+  const sel = document.getElementById('groupSelect');
+  if(!sel) return;
+  const groups = getGroups();
+  const prev = sel.value;
+  sel.innerHTML = '';
+  const opt0 = document.createElement('option'); opt0.value=''; opt0.textContent='(그룹 선택)'; sel.appendChild(opt0);
+  groups.forEach(g=>{ const o=document.createElement('option'); o.value=g; o.textContent=g; sel.appendChild(o); });
+  if(groups.includes(prev)) sel.value = prev;
+}
+function renderGroupCards(groupName){
+  const wrap = document.getElementById('groupCards');
+  const info = document.getElementById('groupInfo');
+  wrap.innerHTML = '';
+  if(!groupName){ info.textContent = '그룹을 선택하면, 해당 교차로의 모든 횡단보도 타이머를 동시에 보여줍니다.'; return; }
+  const children = items.filter(it=> (it.group||'').trim() === groupName.trim());
+  if(children.length===0){ info.textContent = '선택한 그룹에 등록된 항목이 없습니다.'; return; }
 
-// UI binds
-document.getElementById('addBtn').onclick = () =>{
-  const obj = {
-    name: document.getElementById('name').value.trim()||'이름없음',
-    cycle_sec: +document.getElementById('cycle').value,
-    green_sec: +document.getElementById('green').value,
-    offset_sec: +document.getElementById('offset').value||0,
-    reference_epoch: document.getElementById('epoch').value.trim(),
-    lat: parseFloat(document.getElementById('lat').value)||null,
-    lng: parseFloat(document.getElementById('lng').value)||null,
-  };
-  addItem(obj);
-};
+  const nowMs = Date.now();
+  info.textContent = `그룹 "${groupName}" • ${children.length}개`;
 
-document.getElementById('demoBtn').onclick = () => {
-  // 샘플: 신사역 푸른저축은행 — 입력칸 채우고, 바로 리스트에 추가까지
-  const sample = {
-    name: '신사역 푸른저축은행',
-    cycle_sec: 190,
-    green_sec: 55,
-    offset_sec: 0,
-    // ↓ 현장 UTC로 바꿔도 OK. 일단 테스트용으로 유지
-    reference_epoch: '2025-09-06T11:50:50Z',
-    lat: null,
-    lng: null,
-  };
-  // 입력칸에도 보이기
-  document.getElementById('name').value = sample.name;
-  document.getElementById('cycle').value = sample.cycle_sec;
-  document.getElementById('green').value = sample.green_sec;
-  document.getElementById('offset').value = sample.offset_sec;
-  document.getElementById('epoch').value = sample.reference_epoch;
-  // 리스트에 즉시 추가
-  addItem(sample);
-  // 라이브 패널 맨 위 항목으로 고정
-  currentIdx = items.length - 1;
-  render();
-  alert('샘플이 추가됐어요. 라이브 패널에서 바로 확인해보세요!');
-};
+  children.forEach((it, i)=>{
+    const {state, remaining, phase} = compute(nowMs, it);
+    const card = document.createElement('div');
+    card.className = 'sigCard';
+    card.onclick = ()=>{ // 카드 클릭 시 단일 라이브로 고정
+      const idx = items.findIndex(x=>x===it);
+      if(idx>=0){ currentIdx = idx; render(); highlightRow(idx); }
+    };
+    card.innerHTML = `
+      <div class="sigName">${it.name}</div>
+      <div class="sigState ${state==='GREEN'?'g':'r'}">${state}</div>
+      <div class="sigTimer mono">${fmtClock(remaining)}</div>
+      <div class="sigSub mono">phase ${Math.floor(phase)}s • cycle ${it.cycle_sec} • green ${it.green_sec} • offset ${it.offset_sec}</div>
+    `;
+    wrap.appendChild(card);
+  });
+}
 
-document.getElementById('exportBtn').onclick = () =>{
-  const blob = new Blob([JSON.stringify(items, null, 2)], {type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'intersections.json';
-  a.click(); URL.revokeObjectURL(a.href);
-};
-
-document.getElementById('clearBtn').onclick = () =>{
-  if(confirm('모든 항목을 삭제할까요?')){ items=[]; save(); render(); }
-};
-
-document.getElementById('geoBtn').onclick = () =>{
-  if(!navigator.geolocation){ alert('Geolocation 미지원'); return; }
-  navigator.geolocation.getCurrentPosition(pos=>{
-    const {latitude, longitude} = pos.coords;
-    // 간단 최근접 찾기
-    let bestIdx = -1, bestDist = Infinity;
-    items.forEach((it, i)=>{
-      if(!(it.lat&&it.lng)) return;
-      const d = haversine(latitude, longitude, it.lat, it.lng);
-      if(d < bestDist){ bestDist = d; bestIdx = i; }
-    });
-    if(bestIdx<0){ alert('좌표가 입력된 항목이 없습니다.'); return; }
-    // 라이브 패널 대상 고정
-    currentIdx = bestIdx; render();
-    alert(`가까운 항목: ${items[bestIdx].name} (약 ${bestDist.toFixed(0)}m)`);
-  }, err=> alert('위치 오류: '+err.message), {enableHighAccuracy:false, timeout:8000});
-};
-
+// ===== utils =====
 function haversine(lat1, lon1, lat2, lon2){
   const R=6371000; const toRad=x=>x*Math.PI/180;
   const dphi=toRad(lat2-lat1), dl=toRad(lon2-lon1);
@@ -302,8 +317,119 @@ function haversine(lat1, lon1, lat2, lon2){
   return 2*R*Math.asin(Math.sqrt(a));
 }
 
-load(); render();
+// ===== bind after DOM ready =====
+window.onload = () => {
+  load();
+  render();
+  fillGroupSelect();
+
+  // periodic refresh
+  setInterval(()=>{
+    render();
+    const sel = document.getElementById('groupSelect');
+    renderGroupCards(sel ? sel.value : '');
+  }, 250);
+
+  // add item
+  const addBtn = document.getElementById('addBtn');
+  if(addBtn){ addBtn.addEventListener('click', ()=>{
+    const obj = {
+      name: document.getElementById('name').value.trim()||'이름없음',
+      group: document.getElementById('group').value.trim()||'',
+      cycle_sec: +document.getElementById('cycle').value,
+      green_sec: +document.getElementById('green').value,
+      offset_sec: +document.getElementById('offset').value||0,
+      reference_epoch: document.getElementById('epoch').value.trim(),
+      lat: parseFloat(document.getElementById('lat').value)||null,
+      lng: parseFloat(document.getElementById('lng').value)||null,
+    };
+    addItem(obj);
+  });}
+
+  // demo(신사역 푸른저축은행)
+  const demoBtn = document.getElementById('demoBtn');
+  if(demoBtn){ demoBtn.addEventListener('click', ()=>{
+    const sample = {
+      name: '신사역 푸른저축은행',
+      group: '신사역 푸른저축은행(단독)',
+      cycle_sec: 190,
+      green_sec: 55,
+      offset_sec: 0,
+      reference_epoch: '2025-09-07T11:34:57Z', // 20:34:57 KST
+      lat: null, lng: null,
+    };
+    // 입력칸 표시
+    document.getElementById('name').value = sample.name;
+    document.getElementById('group').value = sample.group;
+    document.getElementById('cycle').value = sample.cycle_sec;
+    document.getElementById('green').value = sample.green_sec;
+    document.getElementById('offset').value = sample.offset_sec;
+    document.getElementById('epoch').value = sample.reference_epoch;
+    // 즉시 추가
+    addItem(sample);
+    currentIdx = items.length - 1;
+    render();
+    fillGroupSelect();
+  });}
+
+  // export JSON
+  const exportBtn = document.getElementById('exportBtn');
+  if(exportBtn){ exportBtn.addEventListener('click', ()=>{
+    const blob = new Blob([JSON.stringify(items, null, 2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'intersections.json';
+    a.click(); URL.revokeObjectURL(a.href);
+  });}
+
+  // clear
+  const clearBtn = document.getElementById('clearBtn');
+  if(clearBtn){ clearBtn.addEventListener('click', ()=>{
+    if(confirm('모든 항목을 삭제할까요?')){ items=[]; save(); render(); fillGroupSelect(); }
+  });}
+
+  // geolocate pick
+  const geoBtn = document.getElementById('geoBtn');
+  if(geoBtn){ geoBtn.addEventListener('click', ()=>{
+    if(!navigator.geolocation){ alert('Geolocation 미지원'); return; }
+    navigator.geolocation.getCurrentPosition(pos=>{
+      const {latitude, longitude} = pos.coords;
+      let bestIdx = -1, bestDist = Infinity;
+      items.forEach((it, i)=>{
+        if(!(it.lat&&it.lng)) return;
+        const d = haversine(latitude, longitude, it.lat, it.lng);
+        if(d < bestDist){ bestDist = d; bestIdx = i; }
+      });
+      if(bestIdx<0){ alert('좌표가 입력된 항목이 없습니다.'); return; }
+      currentIdx = bestIdx; render();
+      alert(`가까운 항목: ${items[bestIdx].name} (약 ${bestDist.toFixed(0)}m)`);
+    }, err=> alert('위치 오류: '+err.message), {enableHighAccuracy:false, timeout:8000});
+  });}
+
+  // sync (단일)
+  const syncBtn = document.getElementById('syncBtn');
+  if(syncBtn){ syncBtn.addEventListener('click', ()=>{
+    if(!items.length){ alert('먼저 리스트에 항목을 추가하세요.'); return; }
+    const idx = Math.max(0, Math.min(currentIdx, items.length-1));
+    const nowIso = new Date().toISOString();
+    items[idx].reference_epoch = nowIso;
+    save(); render();
+    alert(`동기화 완료: reference_epoch = ${nowIso}`);
+  });}
+
+  // group select -> render
+  const refreshGroup = document.getElementById('refreshGroup');
+  const groupSelect = document.getElementById('groupSelect');
+  if(refreshGroup){ refreshGroup.addEventListener('click', ()=>{
+    renderGroupCards(groupSelect.value);
+  });}
+};
+
+// URL ?demo=1 → 샘플 자동 추가
+try{
+  const params = new URLSearchParams(location.search);
+  if(params.get('demo')==='1'){ window.addEventListener('load', ()=>{ const b=document.getElementById('demoBtn'); if(b) b.click(); }); }
+}catch(e){}
 </script>
 </body>
 </html>
-
